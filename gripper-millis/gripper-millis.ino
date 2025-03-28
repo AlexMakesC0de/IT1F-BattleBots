@@ -1,4 +1,4 @@
-#define PIN_GRIPPER 2 // pin 2 is wired to the grippers
+#define PIN_GRIPPER 4 // pin 2 is wired to the grippers
 #define GRIPPER_OPEN 1750 // 1750 μs rotation
 #define GRIPPER_CLOSE 1220 // 1220 μs rotation
 
