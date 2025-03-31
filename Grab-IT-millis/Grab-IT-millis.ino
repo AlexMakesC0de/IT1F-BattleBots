@@ -48,12 +48,10 @@ void closeGripper() {
 }
 
 // MOTORS
-#define MOTORS_H
-
-#define MOTOR_A1 10         // Motor control pin (left backward)
-#define MOTOR_A2 11         // Motor control pin (left forward)
-#define MOTOR_B1 6          // Motor control pin (right backward)
-#define MOTOR_B2 9          // Motor control pin (right forward)
+#define MOTOR_A_1 11  // Right Backward
+#define MOTOR_A_2 10  // Right Forward
+#define MOTOR_B_1 9   // Left Backward
+#define MOTOR_B_2 8   // Left Forward
 #define MOTOR_DEVIATION 14  // Correction for motor speed imbalance
 #define MOTOR_SPEED 180     // Motor forward and backward speed
 
@@ -89,10 +87,10 @@ void countPulseR2() {
 }
 
 void setupMotors() {
-  pinMode(MOTOR_A1, OUTPUT);
-  pinMode(MOTOR_A2, OUTPUT);
-  pinMode(MOTOR_B1, OUTPUT);
-  pinMode(MOTOR_B2, OUTPUT);
+  pinMode(MOTOR_A_1, OUTPUT);
+  pinMode(MOTOR_A_2, OUTPUT);
+  pinMode(MOTOR_B_1, OUTPUT);
+  pinMode(MOTOR_B_2, OUTPUT);
 
   pinMode(ENCODER_R1, INPUT);
   pinMode(ENCODER_R2, INPUT);
@@ -106,19 +104,19 @@ void moveForward25cm() {
   pulseCountR2 = 0;
 
   while (pulseCountR1 < P_MOVE_25CM && pulseCountR2 < P_MOVE_25CM) {
-    analogWrite(MOTOR_A1, MOTOR_SPEED);  // Left Forward
-    analogWrite(MOTOR_A2, 0);
-    analogWrite(MOTOR_B1, 0);
-    analogWrite(MOTOR_B2, MOTOR_SPEED);  // Right Forward
+    analogWrite(MOTOR_A_2, MOTOR_SPEED);  // Right Forward
+    analogWrite(MOTOR_A_1, 0);            // Right Backward
+    analogWrite(MOTOR_B_2, MOTOR_SPEED);  // Left Forward
+    analogWrite(MOTOR_B_1, 0);            // Left Backward
   }
   stopMotors();
 }
 
 void stopMotors() {
-  analogWrite(MOTOR_A1, 0);
-  analogWrite(MOTOR_A2, 0);
-  analogWrite(MOTOR_B1, 0);
-  analogWrite(MOTOR_B2, 0);
+  analogWrite(MOTOR_A_1, 0);
+  analogWrite(MOTOR_A_2, 0);
+  analogWrite(MOTOR_B_1, 0);
+  analogWrite(MOTOR_B_2, 0);
 }
 
 void setup() {
