@@ -48,10 +48,10 @@ void closeGripper() {
 }
 
 // MOTORS
-#define MOTOR_A_1 11  // Right Backward
-#define MOTOR_A_2 10  // Right Forward
-#define MOTOR_B_1 9   // Left Backward
-#define MOTOR_B_2 8   // Left Forward
+#define MOTOR_A_1 11        // Right Backward
+#define MOTOR_A_2 10        // Right Forward
+#define MOTOR_B_1 9         // Left Backward
+#define MOTOR_B_2 8         // Left Forward
 #define MOTOR_DEVIATION 14  // Correction for motor speed imbalance
 #define MOTOR_SPEED 180     // Motor forward and backward speed
 
@@ -99,6 +99,24 @@ void setupMotors() {
   attachInterrupt(digitalPinToInterrupt(ENCODER_R2), countPulseR2, RISING);
 }
 
+void moveForward25cmClosedGrippers() {
+  pulseCountR1 = 0;
+  pulseCountR2 = 0;
+
+  while (pulseCountR1 < P_MOVE_25CM && pulseCountR2 < P_MOVE_25CM) {
+    analogWrite(MOTOR_A_2, MOTOR_SPEED);  // Right Forward
+    analogWrite(MOTOR_A_1, 0);            // Right Backward
+    analogWrite(MOTOR_B_2, MOTOR_SPEED);  // Left Forward
+    analogWrite(MOTOR_B_1, 0);            // Left Backward
+  }
+
+  for (int i = 0; i < 50; i++) {
+    gripper(GRIPPER_CLOSED);
+    delay(20);
+  }
+  stopMotors();
+}
+
 void moveForward25cm() {
   pulseCountR1 = 0;
   pulseCountR2 = 0;
@@ -109,6 +127,7 @@ void moveForward25cm() {
     analogWrite(MOTOR_B_2, MOTOR_SPEED);  // Left Forward
     analogWrite(MOTOR_B_1, 0);            // Left Backward
   }
+
   stopMotors();
 }
 
@@ -117,6 +136,11 @@ void stopMotors() {
   analogWrite(MOTOR_A_2, 0);
   analogWrite(MOTOR_B_1, 0);
   analogWrite(MOTOR_B_2, 0);
+
+  for (int i = 0; i < 50; i++) {
+    gripper(GRIPPER_CLOSED);
+    delay(20);
+  }
 }
 
 void setup() {
@@ -126,13 +150,6 @@ void setup() {
 }
 
 void loop() {
-  // Initial close with continuous pulsing
-  for (int i = 0; i < 50; i++) {
-    gripper(GRIPPER_CLOSED);
-    delay(20);
-  }
-  delay(1000);  // Wait 1 second
-
   // Open gripper
   openGripper();
   delay(1000);  // Wait 1 second
@@ -144,26 +161,16 @@ void loop() {
   }
   delay(1000);  // Wait 1 second
 
-  // Move forward 30cm while maintaining gripper power
-  moveForward25cm();
-  for (int i = 0; i < 100; i++) {  // Increased iterations for longer movement
-    gripper(GRIPPER_CLOSED);
-    delay(20);
-  }
+  // Open gripper
+  openGripper();
+  delay(1000);  // Wait 1 second
 
-  // Move forward 10cm while maintaining gripper power
   moveForward25cm();
-  for (int i = 0; i < 50; i++) {
-    gripper(GRIPPER_CLOSED);
-    delay(20);
-  }
+
+  // Move forward 25cm while maintaining gripper power
+  moveForward25cmClosedGrippers();
+
 
   // Stop motors but keep gripper powered
   stopMotors();
-
-  // Keep gripper powered indefinitely
-  while (1) {
-    gripper(GRIPPER_CLOSED);
-    delay(20);
-  }
 }
