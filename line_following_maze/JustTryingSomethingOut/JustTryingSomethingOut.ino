@@ -1,6 +1,17 @@
 #include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 
-enum RobotState { FOLLOW_LINE, TURNING, TURNING_LEFT, TURNING_RIGHT, TURNING_AROUND, CHECKING_FOR_PATH_AHEAD };
+// NeoPixel setup
+#define NEOPIXEL_PIN 5  // Use any available digital pin
+#define NUM_PIXELS 4    // 4 NeoPixels
+// Pixel mapping:
+// Pixel 0: Bottom Left
+// Pixel 1: Bottom Right
+// Pixel 2: Top Right
+// Pixel 3: Top Left
+Adafruit_NeoPixel pixels(NUM_PIXELS, NEOPIXEL_PIN, NEO_RGB + NEO_KHZ800);
+
+enum RobotState { FOLLOW_LINE, TURNING, TURNING_LEFT, TURNING_RIGHT, TURNING_AROUND, OBSTACLE_DETECTED, AVOIDING_OBSTACLE, CHECKING_FOR_PATH_AHEAD };
 enum LinePosition { T_JUNCTION, LEFT_LINE, RIGHT_LINE, NO_LINE, CENTER_LINE };
 RobotState robotState = FOLLOW_LINE;
 LinePosition linePosition = CENTER_LINE;
@@ -30,6 +41,12 @@ const int target = DISTANCE_FROM_BASE_TO_CONE;
 // Encoder Pulse Counters
 volatile signed int _leftTicks = 8;
 volatile signed int _rightTicks = 0;
+
+// Ultrasonic Sensor
+#define TRIG_PIN 12
+#define ECHO_PIN 13
+#define MAX_DISTANCE 50 // Maximum distance in cm
+#define OBSTACLE_THRESHOLD 17 // Distance in cm to consider an obstacle
 
 // Motor Pins
 #define MOTOR_A_1 11  // Right Backward
@@ -98,6 +115,16 @@ float turnDistances = 0; // ARC of a circle
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  
+  // Initialize NeoPixels
+  pixels.begin();
+  pixels.setBrightness(50); // Set brightness (0-255)
+  setColor(255, 0, 0); // Red at startup
+  
+  // Initialize Ultrasonic Sensor
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  
   // Set Motor Pins
   pinMode(MOTOR_A_1, OUTPUT);
   pinMode(MOTOR_A_2, OUTPUT);
@@ -115,8 +142,6 @@ void setup() {
   //SERVO
   pinMode(SERVO, OUTPUT);
   digitalWrite(SERVO, LOW);
-
-
 }
 
 void loop() {
@@ -134,13 +159,14 @@ void loop() {
       }
   }
   
+  // Update lights early in the loop
+  updateNeoPixels();
+  
   if(coneInSquare && !sensorsCalibrated){
-    //calibrateSensors
     calibrateSensors();
   }
 
   if (sensorsCalibrated && !conePickedUp) {
-    //pickUpCone
     conePickedUp = true;
     return;
   }
@@ -153,8 +179,23 @@ void loop() {
 
   if (gameStarted && !gameEnded) {
     getLinePosition();
-    Serial.print("Robotstate: "); Serial.println(robotState);
-    Serial.print("LinePosition: "); Serial.println(linePosition);
+    
+    float dist = getDistance();
+    
+    if (dist != -1) /* That means an object has been detected*/ {  
+      // Check if object is detected within threshold
+      if (dist < OBSTACLE_THRESHOLD) {
+        Serial.println("*** OBSTACLE DETECTED! ***");
+        Serial.print("Obstacle at: ");
+        Serial.print(dist);
+        Serial.println(" cm - Turning to avoid");
+        stopMotors();
+        // Turn robot 180 degrees right to avoid obstacle
+        turn180(140, 170);
+        return; // Skip the rest of the loop
+      }
+    }
+    
     
 
     if (linePosition != CENTER_LINE) {
@@ -162,12 +203,8 @@ void loop() {
       // if(!pathChecked) return;
       if (linePosition == T_JUNCTION) {
         turnLeftMillis(90);
-        Serial.println(robotState);
-        Serial.println("TURNING_LEFT2");
       } else if (linePosition == LEFT_LINE) {
         turnLeftMillis(80);
-        Serial.println(robotState);
-        Serial.println("TURNING_LEFT");
         
         // Continue turning until line is detected
         readSensors();
@@ -180,29 +217,27 @@ void loop() {
         }
         
         if (!lineDetected) {
+          updateNeoPixels(); // Update lights before returning
           return; // Keep turning until line is detected
         }
       } else if (linePosition == NO_LINE) {
         turnAroundMillis();
-        Serial.println(robotState);
-        Serial.println("TURNING_AROUND");
       } else if (linePosition == RIGHT_LINE) {
-        linePosition == CENTER_LINE;
+        linePosition = CENTER_LINE;
         robotState = FOLLOW_LINE;
         //turnRightMillis(90);
         moveForwardPID(baseSpeed, baseSpeed, false, true);
-        Serial.println(robotState);
-        Serial.println("TURNING_RIGHT");        
       }
     }
 
     if (linePosition == CENTER_LINE) {
       moveForwardPID(baseSpeed, baseSpeed, false, true);
-      Serial.println(robotState);
-      Serial.println("FollowLine");
     }
   }
 
+  // Update NeoPixel colors based on robot state - keep this one 
+  // as a final update in case state changed during this loop
+  updateNeoPixels();
 }
 
 void checkPathAhead() {
@@ -219,14 +254,12 @@ void checkPathAhead() {
     // Move forward slightly
     moveForwardPID(200, 200, true, false);
     checkingPath = true;
-    Serial.print("Checking Path: ");
   }
 
   // Wait until the robot moves forward by forwardTicks
   if (checkingPath && (_leftTicks >= forwardTicks || _rightTicks >= forwardTicks)) {
     stopMotors();
     checkingPath = false;
-    Serial.println("PathChecked");
     // Check if a path exists ahead
     readSensors();
     bool pathExists = sensorValues[2] > sensorThreshold[2] || sensorValues[3] > sensorThreshold[3] || sensorValues[4] > sensorThreshold[4] || sensorValues[5] > sensorThreshold[5];
@@ -242,6 +275,9 @@ void checkPathAhead() {
       motionComplete = false;
       pathChecked = true;
     }
+    
+    // Update LEDs after state change
+    updateNeoPixels();
   }
 }
 
@@ -281,7 +317,6 @@ void turnLeftMillis(int angle) {
     targetPulses = 0;
     float turnDistance = (angle / 360.0) * turn_Circumference;  
     targetPulses = (turnDistance / WHEEL_CIRCUMFERENCE) * PULSE_PER_REVOLUTION;
-    Serial.print("Target Pulses: "); Serial.println(targetPulses);
 
     analogWrite(MOTOR_A_1, 0);
     analogWrite(MOTOR_A_2, 0);
@@ -294,18 +329,21 @@ void turnLeftMillis(int angle) {
     
     robotState = TURNING_LEFT;  //Lock state to "TURNING_LEFT"
     motionComplete = false;
+    
+    // Update LEDs immediately after state change
+    updateNeoPixels();
   }
 
   if (robotState == TURNING_LEFT) {
     lastCheck = millis();
-    Serial.print("Turning Left: "); Serial.println(robotState);
     if (_rightTicks >= targetPulses) {
       stopMotors();
-      //Serial.println(robotState);
       robotState = FOLLOW_LINE;  // Unlock state after turn is complete
-      Serial.print("Turn Complete ");
       motionComplete = true;
       linePosition = CENTER_LINE;
+      
+      // Update LEDs immediately after state change
+      updateNeoPixels();
     }
   }
 }
@@ -320,7 +358,6 @@ void turnRightMillis(int angle) {
     targetPulses = 0;
     float turnDistance = (angle / 360.0) * turn_Circumference;  
     targetPulses = (turnDistance / WHEEL_CIRCUMFERENCE) * PULSE_PER_REVOLUTION;
-    Serial.print("Target Pulses: "); Serial.println(targetPulses);
 
     analogWrite(MOTOR_A_1, 0);
     analogWrite(MOTOR_A_2, 0);
@@ -337,12 +374,9 @@ void turnRightMillis(int angle) {
 
   if (robotState == TURNING_RIGHT) {
     lastCheck = millis();
-    Serial.print("Turning Right: "); Serial.println(robotState);
     if (_leftTicks >= targetPulses) {
       stopMotors();
-      //Serial.println(robotState);
       robotState = FOLLOW_LINE;  // Unlock state after turn is complete
-      Serial.print("Turn Complete ");
       motionComplete = true;
       linePosition = CENTER_LINE;
     }
@@ -359,23 +393,26 @@ void turnAroundMillis() {
 
     float turnDistance = (3.14 * (DISTANCE_BETWEEN_WHEELS / 2)); // Half the turning circumference
     targetPulses = (turnDistance / WHEEL_CIRCUMFERENCE) * PULSE_PER_REVOLUTION;
-    Serial.print("Target Pulses: "); Serial.println(targetPulses);
-    
-    turn180(140, 160); // Left wheel moves forward, right moves backward
+
+    turn180(140, 140); // Left wheel moves backward, right moves forward
 
     robotState = TURNING_AROUND; // Lock state to "TURNING_AROUND"
     motionComplete = false;
+    
+    // Update LEDs immediately after state change
+    updateNeoPixels();
   }
 
   if (robotState == TURNING_AROUND) {
-    Serial.print("Target Pulses: "); Serial.println(targetPulses);
     sensorValues[0] = analogRead(sensorPins[0]);
     if (sensorValues[0] > sensorThreshold[0] || sensorValues[4] > sensorThreshold[4]) {
       stopMotors();
       robotState = FOLLOW_LINE;  // Unlock state after turn is complete
-      Serial.println("Turn Around Complete");
       motionComplete = true;
       linePosition = CENTER_LINE;
+      
+      // Update LEDs immediately after state change
+      updateNeoPixels();
     }
   }
 }
@@ -483,7 +520,9 @@ void stopMotors() {
   analogWrite(MOTOR_A_2, 0);
   analogWrite(MOTOR_B_1, 0);
   analogWrite(MOTOR_B_2, 0);
-  Serial.println("Stoping");
+  
+  // Update LEDs immediately when stopping
+  updateNeoPixels();
 }
 
 void moveForward(int _leftSpeed, int _rightSpeed) {
@@ -540,4 +579,86 @@ void readSensors() {
 void resetTicks() {
   _leftTicks = 0;
   _rightTicks = 0;
+}
+
+// Function to update NeoPixel colors based on robot state
+void updateNeoPixels() {
+  if (robotState == FOLLOW_LINE) {
+    // Forward: All lights (0-3) GREEN
+    setColor(0, 255, 0);
+  } else if (robotState == TURNING_LEFT) {
+    // TurnLeftMillis: lights 0 and 3 (left side) ORANGE, lights 1 and 2 (right side) GREEN
+    pixels.setPixelColor(0, pixels.Color(255, 165, 0)); // Bottom Left - ORANGE
+    pixels.setPixelColor(3, pixels.Color(255, 165, 0)); // Top Left - ORANGE
+    pixels.setPixelColor(1, pixels.Color(0, 255, 0));   // Bottom Right - GREEN
+    pixels.setPixelColor(2, pixels.Color(0, 255, 0));   // Top Right - GREEN
+    pixels.show();
+  } else if (robotState == TURNING_AROUND) {
+    // TurnAroundMillis: lights 1 and 2 (right side) ORANGE, lights 0 and 3 (left side) GREEN
+    pixels.setPixelColor(1, pixels.Color(255, 165, 0)); // Bottom Right - ORANGE
+    pixels.setPixelColor(2, pixels.Color(255, 165, 0)); // Top Right - ORANGE
+    pixels.setPixelColor(0, pixels.Color(0, 255, 0));   // Bottom Left - GREEN
+    pixels.setPixelColor(3, pixels.Color(0, 255, 0));   // Top Left - GREEN
+    pixels.show();
+  } else {
+    // Stopped: All lights (0-3) RED
+    setColor(255, 0, 0);
+  }
+}
+
+// Helper function to set all NeoPixels to the same color
+void setColor(uint8_t r, uint8_t g, uint8_t b) {
+  for(int i=0; i<NUM_PIXELS; i++) {
+    pixels.setPixelColor(i, pixels.Color(r, g, b));
+  }
+  pixels.show();
+}
+
+// Helper function to set different colors for left and right sides
+void setSplitColors(uint8_t leftR, uint8_t leftG, uint8_t leftB, 
+                    uint8_t rightR, uint8_t rightG, uint8_t rightB) {
+  // Assuming first half of pixels are on left side, second half on right side
+  int middle = NUM_PIXELS / 2;
+  
+  // Set left side pixels (1-2)
+  for(int i=0; i<middle; i++) {
+    pixels.setPixelColor(i, pixels.Color(leftR, leftG, leftB));
+  }
+  
+  // Set right side pixels (3-4)
+  for(int i=middle; i<NUM_PIXELS; i++) {
+    pixels.setPixelColor(i, pixels.Color(rightR, rightG, rightB));
+  }
+  
+  pixels.show();
+}
+
+// Function to get distance from ultrasonic sensor
+float getDistance() {
+  // Clear the trigger pin
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  
+  // Set the trigger pin HIGH for 10 microseconds
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  
+  // Read the echo pin, return the sound wave travel time in microseconds
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // Timeout after 30ms
+  
+  // Calculate the distance
+  float distance = duration * 0.034 / 2; // Speed of sound is 340 m/s or 0.034 cm/μs
+  
+  // Print the distance
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  if (distance > 0 && distance < MAX_DISTANCE) {
+    return distance;
+  }
+  else {
+    return -1;
+  }
 }
