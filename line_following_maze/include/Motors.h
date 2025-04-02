@@ -9,6 +9,7 @@
 
 #define MOTOR_DEVIATION       70        // Correction for motor speed imbalance
 #define MOTOR_SPEED           180       // Motor forward and backward speed
+#define TURN_SPEED            230       // Motor turn speed
 
 #define ENCODER_R1            2         // Left Wheel Sensor
 #define ENCODER_R2            3         // Right Wheel Sensor

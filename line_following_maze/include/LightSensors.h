@@ -9,7 +9,6 @@
 void setupLightSensors();
 void readSensors();
 void printLightSensorValues(); 
-bool isBlack(int reading);
 bool isBlack(int sensorIndex, int reading);
 void updateCalibration();
 void finalizeCalibration();

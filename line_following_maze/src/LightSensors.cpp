@@ -64,16 +64,6 @@ void finalizeCalibration() {
             // Fall back to a reasonable default
             sensorThreshold[i] = 750;
         }
-        
-        // Debug output
-        Serial.print("Sensor ");
-        Serial.print(i);
-        Serial.print(" calibration - Min: ");
-        Serial.print(sensorMin[i]);
-        Serial.print(", Max: ");
-        Serial.print(sensorMax[i]);
-        Serial.print(", Threshold: ");
-        Serial.println(sensorThreshold[i]);
     }
     
     // Calculate an average threshold for backward compatibility
@@ -85,8 +75,6 @@ void finalizeCalibration() {
     
     sensorsCalibrated = true;
     Serial.println("Sensor calibration complete!");
-    Serial.print("Average threshold: ");
-    Serial.println(dynamicThreshold);
 }
 
 // Main calibration function to be called in executeStartSequence
@@ -137,27 +125,10 @@ bool isBlack(int sensorIndex, int reading) {
     return reading > sensorThreshold[sensorIndex];
 }
 
-// Backward compatible function for previous isBlack usage
-bool isBlack(int reading) {
-    return reading > dynamicThreshold;
-}
-
 void printLightSensorValues() {
-    // Print header
-    Serial.println("Light Sensor Values:");
-    
-    // Read and print values from all 8 sensors
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        int sensorValue = analogRead(LIGHT_SENSOR[i]);
-        Serial.print("Sensor ");
-        Serial.print(i);
-        Serial.print(": ");
-        Serial.print(sensorValue);
-        Serial.print(" (");
-        Serial.print(isBlack(i, sensorValue) ? "Black" : "White");
-        Serial.println(")");
-    }
-    Serial.println(); // Add blank line between readings
+    // This is a debug function, so completely remove printing
+    // Only read sensors to keep function signature intact
+    readSensors();
 }
 
 void determineLinePosition() {
@@ -167,32 +138,25 @@ void determineLinePosition() {
     float weightedSum = 0;
     int sum = 0;
     
-    // Print sensor values for debugging
-    Serial.print("Sensors: ");
+    // Remove debug printing
     
     for (int i = 0; i < NUM_SENSORS; i++) {
-        Serial.print(sensorValues[i]);
-        Serial.print("\t");
-        
         // Check if sensor detects line using individual thresholds
         if (isBlack(i, sensorValues[i])) {
             weightedSum += i * 1000;  // Multiply by position (0-7000)
             sum += 1;
         }
     }
-    Serial.println();
     
     // Calculate line position if at least one sensor detects the line
     if (sum > 0) {
         linePosition = weightedSum / sum;
         onLine = true;
         
-        // Print position
-        Serial.print("Line Position: ");
-        Serial.println(linePosition);
+        // Remove position printing
     } else {
         onLine = false;
-        Serial.println("No line detected!");
+        // Remove no line printing
     }
 }
 
@@ -217,31 +181,12 @@ int getLineError() {
 void getSensorCombinations() {
     readSensors();
     
-    Serial.println("Sensor Combinations:");
+    // Remove all debug printing
+    // Just perform the calculations but don't print anything
     
-    // Print raw sensor values
-    Serial.print("Raw: ");
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        Serial.print(sensorValues[i]);
-        Serial.print(" ");
-    }
-    Serial.println();
-    
-    // Print binary representation (black/white)
-    Serial.print("B/W: ");
-    for (int i = 0; i < NUM_SENSORS; i++) {
-        Serial.print(isBlack(i, sensorValues[i]) ? "B" : "W");
-        Serial.print(" ");
-    }
-    Serial.println();
-    
-    // Calculate and print line position
+    // Calculate line position
     determineLinePosition();
     
-    // Calculate and print error
+    // Calculate error (but don't print)
     int error = getLineError();
-    Serial.print("Error: ");
-    Serial.println(error);
-    
-    Serial.println();  // Extra line for readability
 }
