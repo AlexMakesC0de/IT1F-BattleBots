@@ -122,6 +122,11 @@ int raduis = DISTANCE_BETWEEN_WHEELS;
 int turn_Circumference = 2 * 3.14 * raduis;
 float turnDistances = 0; // ARC of a circle
 
+// Add these variables for LED flashing control
+unsigned long lastFlashTime = 0;
+const unsigned long flashInterval = 100; // Flash every 100ms (10 times per second)
+bool flashState = false;
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -631,22 +636,53 @@ void resetTicks() {
 
 // Function to update NeoPixel colors based on robot state
 void updateNeoPixels() {
-  if (robotState == FOLLOW_LINE) {
-    // Forward: All lights (0-3) GREEN
-    setColor(0, 255, 0);
-  } else if (robotState == TURNING_LEFT) {
-    // TurnLeftMillis: lights 0 and 3 (left side) ORANGE, lights 1 and 2 (right side) GREEN
-    pixels.setPixelColor(0, pixels.Color(255, 165, 0)); // Bottom Left - ORANGE
-    pixels.setPixelColor(3, pixels.Color(255, 165, 0)); // Top Left - ORANGE
-    pixels.setPixelColor(1, pixels.Color(0, 255, 0));   // Bottom Right - GREEN
-    pixels.setPixelColor(2, pixels.Color(0, 255, 0));   // Top Right - GREEN
-    pixels.show();
-  } else if (robotState == TURNING_AROUND) {
-    // TurnAroundMillis: lights 1 and 2 (right side) ORANGE, lights 0 and 3 (left side) GREEN
-    pixels.setPixelColor(1, pixels.Color(255, 165, 0)); // Bottom Right - ORANGE
-    pixels.setPixelColor(2, pixels.Color(255, 165, 0)); // Top Right - ORANGE
-    pixels.setPixelColor(0, pixels.Color(0, 255, 0));   // Bottom Left - GREEN
-    pixels.setPixelColor(3, pixels.Color(0, 255, 0));   // Top Left - GREEN
+  unsigned long currentMillis = millis();
+  
+  // Handle flashing for all turning states
+  if (robotState == TURNING_LEFT || robotState == TURNING_RIGHT || robotState == TURNING_AROUND) {
+    // Update flash state every flashInterval milliseconds
+    if (currentMillis - lastFlashTime >= flashInterval) {
+      lastFlashTime = currentMillis;
+      flashState = !flashState; // Toggle flash state
+    }
+    
+    if (robotState == TURNING_LEFT) {
+      if (flashState) {
+        // Flash ON state - lights 0 and 3 (left side) ORANGE, lights 1 and 2 (right side) OFF
+        pixels.setPixelColor(0, pixels.Color(255, 165, 0)); // Bottom Left - ORANGE
+        pixels.setPixelColor(3, pixels.Color(255, 165, 0)); // Top Left - ORANGE
+        pixels.setPixelColor(1, pixels.Color(0, 0, 0));     // Bottom Right - OFF
+        pixels.setPixelColor(2, pixels.Color(0, 0, 0));     // Top Right - OFF
+      } else {
+        // Flash OFF state - all lights off
+        pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(1, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(2, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(3, pixels.Color(0, 0, 0));
+      }
+      pixels.show();
+    } else if (robotState == TURNING_RIGHT || robotState == TURNING_AROUND) {
+      if (flashState) {
+        // Flash ON state - lights 0 and 3 (left side) OFF, lights 1 and 2 (right side) ORANGE
+        pixels.setPixelColor(0, pixels.Color(0, 0, 0));       // Bottom Left - OFF
+        pixels.setPixelColor(3, pixels.Color(0, 0, 0));       // Top Left - OFF
+        pixels.setPixelColor(1, pixels.Color(255, 165, 0));   // Bottom Right - ORANGE
+        pixels.setPixelColor(2, pixels.Color(255, 165, 0));   // Top Right - ORANGE
+      } else {
+        // Flash OFF state - all lights off
+        pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(1, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(2, pixels.Color(0, 0, 0));
+        pixels.setPixelColor(3, pixels.Color(0, 0, 0));
+      }
+      pixels.show();
+    }
+  } else if (robotState == FOLLOW_LINE) {
+    // Forward: Top lights (2-3) WHITE, Bottom lights (0-1) RED
+    pixels.setPixelColor(2, pixels.Color(255, 255, 255)); // Top Right - WHITE
+    pixels.setPixelColor(3, pixels.Color(255, 255, 255)); // Top Left - WHITE
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));     // Bottom Left - RED
+    pixels.setPixelColor(1, pixels.Color(255, 0, 0));     // Bottom Right - RED
     pixels.show();
   } else {
     // Stopped: All lights (0-3) RED
