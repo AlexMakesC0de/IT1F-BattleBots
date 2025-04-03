@@ -47,7 +47,9 @@ volatile signed int _rightTicks = 0;
 #define ECHO_PIN 13
 #define MAX_DISTANCE 50 // Maximum distance in cm
 #define OBSTACLE_THRESHOLD 17 // Distance in cm to consider an obstacle
-
+#define MAX_DISTANCE_TO_CHECK 24 // Maximum distance in cm to check for other robot coming to drop cone off
+#define MIN_DISTANCE_TO_CHECK 5 // Minimum distance in cm to check for other robot coming to drop cone off
+#define NUM_READINGS 3  // Number of readings to average
 // Motor Pins
 #define MOTOR_A_1 11  // Right Backward
 #define MOTOR_A_2 10  // Right Forward
@@ -84,6 +86,14 @@ void rightEncoderISR() {
     timer = millis() + ISR_INTERVAL;
   }
 }
+
+// Starting conditions
+bool otherRobotDetected = false;
+float distanceReadings[NUM_READINGS];  // Array to store the readings
+int readingCount = 0;  // Counter for valid readings
+int readingIndex = 0;  // Current position in the array
+unsigned long lastCheckTime = 0;  // Last time we checked for other robot
+const unsigned long checkInterval = 100;  // Check every 100ms
 
 // Conditions
 bool coneInSquare = true;
@@ -146,6 +156,44 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  while(!otherRobotDetected){
+    // Non-blocking timing
+    unsigned long currentTime = millis();
+    if (currentTime - lastCheckTime >= checkInterval) {
+      lastCheckTime = currentTime;
+      
+      // Check for robot
+      int distance = getDistance();
+      if (distance < MAX_DISTANCE_TO_CHECK && distance > MIN_DISTANCE_TO_CHECK){
+        Serial.print("Potential robot detection at ");
+        Serial.print(distance);
+        Serial.println(" cm");
+        
+        // Store the reading in the array
+        distanceReadings[readingIndex] = distance;
+        readingIndex = (readingIndex + 1) % NUM_READINGS;  // Circular buffer
+        
+        // Increment counter if we haven't reached NUM_READINGS yet
+        if (readingCount < NUM_READINGS) {
+          readingCount++;
+        }
+        
+        // Check if we have enough valid readings
+        if (readingCount >= NUM_READINGS) {
+          Serial.println("*** OTHER ROBOT CONFIRMED! ***");
+          otherRobotDetected = true;
+        }
+      } else {
+        // Invalid reading, reset the counter
+        readingCount = 0;
+        Serial.println("Detection reset - outside valid range");
+      }
+    }
+    
+    // Other non-critical tasks could run here while waiting
+    // No delay needed - we're using millis() for timing
+  }
+
   int unsigned currentTime = millis();
   if(conePickedUp) {
     if (currentTime - previousTime >= gripperInterval) {
@@ -635,30 +683,42 @@ void setSplitColors(uint8_t leftR, uint8_t leftG, uint8_t leftB,
 
 // Function to get distance from ultrasonic sensor
 float getDistance() {
-  // Clear the trigger pin
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
+  static unsigned long lastReadTime = 0;
+  static float lastMeasurement = -1;
+  unsigned long currentTime = millis();
   
-  // Set the trigger pin HIGH for 10 microseconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  
-  // Read the echo pin, return the sound wave travel time in microseconds
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // Timeout after 30ms
-  
-  // Calculate the distance
-  float distance = duration * 0.034 / 2; // Speed of sound is 340 m/s or 0.034 cm/μs
-  
-  // Print the distance
-  Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.println(" cm");
-  
-  if (distance > 0 && distance < MAX_DISTANCE) {
-    return distance;
+  // Only take a new reading every 200ms
+  if (currentTime - lastReadTime >= 200) {
+    lastReadTime = currentTime;
+    
+    // Clear the trigger pin
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    
+    // Set the trigger pin HIGH for 10 microseconds
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    
+    // Read the echo pin, return the sound wave travel time in microseconds
+    long duration = pulseIn(ECHO_PIN, HIGH, 30000); // Timeout after 30ms
+    
+    // Calculate the distance
+    float distance = duration * 0.034 / 2; // Speed of sound is 340 m/s or 0.034 cm/μs
+    
+    // Print the distance (only when new reading is taken)
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+    
+    // Store the measurement result (valid or invalid)
+    if (distance > 0 && distance < MAX_DISTANCE) {
+      lastMeasurement = distance;
+    } else {
+      lastMeasurement = -1;
+    }
   }
-  else {
-    return -1;
-  }
+  
+  // Return the last measurement result (could be a valid distance or -1)
+  return lastMeasurement;
 }
