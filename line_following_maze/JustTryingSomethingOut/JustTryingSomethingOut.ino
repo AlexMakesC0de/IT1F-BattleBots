@@ -169,11 +169,7 @@ void loop() {
       
       // Check for robot
       int distance = getDistance();
-      if (distance < MAX_DISTANCE_TO_CHECK && distance > MIN_DISTANCE_TO_CHECK){
-        Serial.print("Potential robot detection at ");
-        Serial.print(distance);
-        Serial.println(" cm");
-        
+      if (distance < MAX_DISTANCE_TO_CHECK && distance > MIN_DISTANCE_TO_CHECK){        
         // Store the reading in the array
         distanceReadings[readingIndex] = distance;
         readingIndex = (readingIndex + 1) % NUM_READINGS;  // Circular buffer
@@ -191,7 +187,6 @@ void loop() {
       } else {
         // Invalid reading, reset the counter
         readingCount = 0;
-        Serial.println("Detection reset - outside valid range");
       }
     }
     
@@ -249,42 +244,48 @@ void loop() {
       }
     }
     
-    
-
-    if (linePosition != CENTER_LINE) {
-      // checkPathAhead();
-      // if(!pathChecked) return;
-      if (linePosition == T_JUNCTION) {
+    // Handle different line positions using switch-case
+    switch (linePosition) {
+      case T_JUNCTION:
         turnLeftMillis(90);
-      } else if (linePosition == LEFT_LINE) {
+        break;
+        
+      case LEFT_LINE:
         turnLeftMillis(80);
         
         // Continue turning until line is detected
         readSensors();
-        bool lineDetected = false;
-        for (int i = 0; i < NUM_SENSORS; i++) {
-          if (sensorValues[i] > sensorThreshold[i]) {
-            lineDetected = true;
-            break;
+        {
+          bool lineDetected = false;
+          for (int i = 0; i < NUM_SENSORS; i++) {
+            if (sensorValues[i] > sensorThreshold[i]) {
+              lineDetected = true;
+              break;
+            }
+          }
+          
+          if (!lineDetected) {
+            updateNeoPixels(); // Update lights before returning
+            return; // Keep turning until line is detected
           }
         }
+        break;
         
-        if (!lineDetected) {
-          updateNeoPixels(); // Update lights before returning
-          return; // Keep turning until line is detected
-        }
-      } else if (linePosition == NO_LINE) {
+      case NO_LINE:
         turnAroundMillis();
-      } else if (linePosition == RIGHT_LINE) {
+        break;
+        
+      case RIGHT_LINE:
         linePosition = CENTER_LINE;
         robotState = FOLLOW_LINE;
         //turnRightMillis(90);
         moveForwardPID(baseSpeed, baseSpeed, false, true);
-      }
-    }
-
-    if (linePosition == CENTER_LINE) {
-      moveForwardPID(baseSpeed, baseSpeed, false, true);
+        break;
+        
+      case CENTER_LINE:
+      default:
+        moveForwardPID(baseSpeed, baseSpeed, false, true);
+        break;
     }
   }
 
@@ -741,11 +742,6 @@ float getDistance() {
     
     // Calculate the distance
     float distance = duration * 0.034 / 2; // Speed of sound is 340 m/s or 0.034 cm/μs
-    
-    // Print the distance (only when new reading is taken)
-    Serial.print("Distance: ");
-    Serial.print(distance);
-    Serial.println(" cm");
     
     // Store the measurement result (valid or invalid)
     if (distance > 0 && distance < MAX_DISTANCE) {
