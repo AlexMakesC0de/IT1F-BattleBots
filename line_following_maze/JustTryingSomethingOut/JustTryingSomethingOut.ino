@@ -47,7 +47,7 @@ volatile signed int _rightTicks = 0;
 #define ECHO_PIN 13
 #define MAX_DISTANCE 50 // Maximum distance in cm
 #define OBSTACLE_THRESHOLD 17 // Distance in cm to consider an obstacle
-#define MAX_DISTANCE_TO_CHECK 24 // Maximum distance in cm to check for other robot coming to drop cone off
+#define MAX_DISTANCE_TO_CHECK 30 // Maximum distance in cm to check for other robot coming to drop cone off
 #define MIN_DISTANCE_TO_CHECK 5 // Minimum distance in cm to check for other robot coming to drop cone off
 #define NUM_READINGS 3  // Number of readings to average
 // Motor Pins
@@ -182,6 +182,8 @@ void loop() {
         // Check if we have enough valid readings
         if (readingCount >= NUM_READINGS) {
           Serial.println("*** OTHER ROBOT CONFIRMED! ***");
+          delay(3000);
+          Serial.println("Starting Race in 3 seconds...");
           otherRobotDetected = true;
         }
       } else {
@@ -251,7 +253,7 @@ void loop() {
         break;
         
       case LEFT_LINE:
-        turnLeftMillis(80);
+        turnLeftMillis(90);
         
         // Continue turning until line is detected
         readSensors();
