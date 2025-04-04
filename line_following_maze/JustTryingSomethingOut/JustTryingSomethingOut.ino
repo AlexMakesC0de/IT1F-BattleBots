@@ -337,10 +337,55 @@ void checkPathAhead() {
 
 void getLinePosition() {
   readSensors();
-  leftTurn = sensorValues[4] > sensorThreshold[4] && sensorValues[5] > sensorThreshold[5] && sensorValues[6] > sensorThreshold[6] && sensorValues[7] > sensorThreshold[7] && sensorValues[0] < sensorThreshold[0] && sensorValues[1] < sensorThreshold[1] && sensorValues[2] < sensorThreshold[2];
-  rightTurn = sensorValues[5] < sensorThreshold[5] && sensorValues[6] < sensorThreshold[6] && sensorValues[7] < sensorThreshold[7] && sensorValues[0] > sensorThreshold[0] && sensorValues[1] > sensorThreshold[1] && sensorValues[2] > sensorThreshold[2];
-  tJunctionOrBase = sensorValues[0] > sensorThreshold[0] && sensorValues[1] > sensorThreshold[1] && sensorValues[2] > sensorThreshold[2] && sensorValues[3] > sensorThreshold[3] && sensorValues[4] > sensorThreshold[4] && sensorValues[5] > sensorThreshold[5] && sensorValues[6] > sensorThreshold[6] && sensorValues[7] > sensorThreshold[7];
-  deadEnd = sensorValues[0] < sensorThreshold[0] && sensorValues[1] < sensorThreshold[1] && sensorValues[2] < sensorThreshold[2] && sensorValues[3] < sensorThreshold[3] && sensorValues[4] < sensorThreshold[4] && sensorValues[5] < sensorThreshold[5] && sensorValues[6] < sensorThreshold[6] && sensorValues[7] < sensorThreshold[7];
+  
+  // Left turn detection - right sensors inactive, left sensors active
+  leftTurn = 
+    // Left sensors are active
+    sensorValues[4] > sensorThreshold[4] && 
+    sensorValues[5] > sensorThreshold[5] && 
+    sensorValues[6] > sensorThreshold[6] && 
+    sensorValues[7] > sensorThreshold[7] && 
+    // Right sensors are inactive 
+    sensorValues[0] < sensorThreshold[0] && 
+    sensorValues[1] < sensorThreshold[1] && 
+    sensorValues[2] < sensorThreshold[2];
+  
+  // Right turn detection - left sensors inactive, right sensors active
+  rightTurn = 
+    // Left sensors are inactive
+    sensorValues[5] < sensorThreshold[5] && 
+    sensorValues[6] < sensorThreshold[6] && 
+    sensorValues[7] < sensorThreshold[7] && 
+    // Right sensors are active
+    sensorValues[0] > sensorThreshold[0] && 
+    sensorValues[1] > sensorThreshold[1] && 
+    sensorValues[2] > sensorThreshold[2];
+  
+  // T-Junction or base detection - all sensors active
+  tJunctionOrBase = 
+    // Right sensors are active
+    sensorValues[0] > sensorThreshold[0] && 
+    sensorValues[1] > sensorThreshold[1] && 
+    sensorValues[2] > sensorThreshold[2] && 
+    sensorValues[3] > sensorThreshold[3] && 
+    // Left sensors are active
+    sensorValues[4] > sensorThreshold[4] && 
+    sensorValues[5] > sensorThreshold[5] && 
+    sensorValues[6] > sensorThreshold[6] && 
+    sensorValues[7] > sensorThreshold[7];
+  
+  // Dead end detection - no sensors active
+  deadEnd = 
+    // Right sensors are inactive
+    sensorValues[0] < sensorThreshold[0] && 
+    sensorValues[1] < sensorThreshold[1] && 
+    sensorValues[2] < sensorThreshold[2] && 
+    sensorValues[3] < sensorThreshold[3] && 
+    // Left sensors are inactive
+    sensorValues[4] < sensorThreshold[4] && 
+    sensorValues[5] < sensorThreshold[5] && 
+    sensorValues[6] < sensorThreshold[6] && 
+    sensorValues[7] < sensorThreshold[7];
   
   if(motionComplete) { // State Locking 
     if (leftTurn) {
